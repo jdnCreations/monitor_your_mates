@@ -16,11 +16,9 @@ while ($true) {
     }
   } | ConvertTo-Json -Depth 10
 
-  Write-Host "JSON Payload:"
-  Write-Host $data
 
   Invoke-RestMethod -Uri $url -Method Post -Headers @{ "Content-Type" = "application/json" } -Body $data
 
-  # Sleep for 1 minutes (60 seconds)
-  Start-Sleep -Seconds 60
+  # Sleep for 1 hour (900 seconds)
+  Start-Sleep -Seconds 900 
 }
