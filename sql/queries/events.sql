@@ -14,3 +14,7 @@ WHERE id = $1 and created_at = $2;
 -- name: GetCriticalEvents :many
 SELECT * from events
 where severity = "Critical";
+
+-- name: GetEvents :many
+SELECT * FROM events
+LIMIT $1;

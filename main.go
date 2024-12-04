@@ -109,6 +109,22 @@ type apiConfig struct {
   secret string
 }
 
+func (cfg *apiConfig) handleEvents(w http.ResponseWriter, r *http.Request) {
+  events, err := cfg.db.GetEvents(r.Context(), 10)
+  if err != nil {
+    http.Error(w, "Unable to fetch events", http.StatusInternalServerError)
+    return
+  }
+
+  w.Header().Set("Content-Type", "application/json")
+
+  err = json.NewEncoder(w).Encode(events)
+  if err != nil {
+    http.Error(w, "Error encoding events to JSON", http.StatusInternalServerError)
+    return
+  }
+}
+
 func main() {
   godotenv.Load()
   dbURL := os.Getenv("DB_URL")
@@ -125,6 +141,8 @@ func main() {
   apiConf.secret = secret
 
 	http.HandleFunc("/logEvent", apiConf.handleLog)
+  http.HandleFunc("/api/events", apiConf.handleEvents)
+  http.Handle("/", http.FileServer(http.Dir("./frontend")))
 
 	err = http.ListenAndServe(":3333", nil)
 	if err != nil {

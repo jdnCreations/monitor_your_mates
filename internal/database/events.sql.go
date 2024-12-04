@@ -99,3 +99,36 @@ func (q *Queries) GetEventById(ctx context.Context, arg GetEventByIdParams) (Eve
 	)
 	return i, err
 }
+
+const getEvents = `-- name: GetEvents :many
+SELECT id, message, created_at, severity FROM events
+LIMIT $1
+`
+
+func (q *Queries) GetEvents(ctx context.Context, limit int32) ([]Event, error) {
+	rows, err := q.db.QueryContext(ctx, getEvents, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Event
+	for rows.Next() {
+		var i Event
+		if err := rows.Scan(
+			&i.ID,
+			&i.Message,
+			&i.CreatedAt,
+			&i.Severity,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
