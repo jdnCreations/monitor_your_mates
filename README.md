@@ -9,7 +9,8 @@
 - create a .env file in the base directory
 - fill out the below variables
 
-```DB_URL=<dburl>
+```
+DB_URL=<dburl>
 SECRET=<secret>
 PORT=<port>
 ```
