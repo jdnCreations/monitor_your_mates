@@ -1,11 +1,20 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"os"
+	"regexp"
+	"strconv"
+	"time"
+
+	"github.com/jdnCreations/monitor_your_mates/internal/database"
+	"github.com/joho/godotenv"
+	_ "github.com/lib/pq"
 )
 
 type Event struct {
@@ -15,7 +24,7 @@ type Event struct {
 	Severity string `json:"Severity"`
 }
 
-func handleLog(w http.ResponseWriter, r *http.Request) {
+func (cfg *apiConfig) handleLog(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "GET" {
 		w.Header().Set("Allow", http.MethodPost)
 		http.Error(w, "Only POST requests are allowed", http.StatusMethodNotAllowed)
@@ -30,11 +39,37 @@ func handleLog(w http.ResponseWriter, r *http.Request) {
 		}
 
 		defer r.Body.Close()
-		var event []Event
-		if err := json.Unmarshal(body, &event); err != nil {
+		var events []Event
+		if err := json.Unmarshal(body, &events); err != nil {
 			http.Error(w, "Failed to parse JSON", http.StatusBadRequest)
 			return
 		}
+
+    for _, event := range events {
+      if event.Severity != "Critical" && event.Severity != "Error" && event.Severity != "Warning" {
+        return
+      }
+      time, err := parseDate(event.TimeCreated) 
+      if err != nil {
+        fmt.Println("cannot parse timecreated to time.Time")
+        break
+      }
+      _, err = cfg.db.GetEventById(r.Context(), database.GetEventByIdParams{
+        ID: int32(event.ID),
+        CreatedAt: time,
+      })
+      if err != nil {
+        fmt.Println("event doesn't exist, adding to db.")
+        cfg.db.CreateEvent(r.Context(), database.CreateEventParams{
+          ID: int32(event.ID),
+          Message: sql.NullString{String: event.Message, Valid: true},
+          CreatedAt: time,
+          Severity: sql.NullString{String: event.Severity, Valid: true},
+        })
+      } else {
+        fmt.Println("event already exists")
+      }
+    }
 
 		// save event to database to be able to use on frontend maybe?
 
@@ -43,14 +78,55 @@ func handleLog(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("Event received successfully"))
 	}
+  
+}
+
+func parseDate(dateStr string) (time.Time, error) {
+  // Use a regular expression to extract the timestamp from the string
+	re := regexp.MustCompile(`\/Date\((\d+)\)\/`)
+	matches := re.FindStringSubmatch(dateStr)
+
+	if len(matches) < 2 {
+		return time.Time{}, fmt.Errorf("invalid date format")
+	}
+
+	// Convert the extracted timestamp (milliseconds) to an integer
+	millis, err := strconv.ParseInt(matches[1], 10, 64)
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	// Convert milliseconds to seconds and nanoseconds
+	seconds := millis / 1000
+	nanoseconds := (millis % 1000) * 1e6
+
+	// Return the parsed time
+	return time.Unix(seconds, nanoseconds), nil
+}
+
+type apiConfig struct {
+  db *database.Queries
+  secret string
 }
 
 func main() {
-	fmt.Println("UP N RUNNIN")
+  godotenv.Load()
+  dbURL := os.Getenv("DB_URL")
+  secret := os.Getenv("SECRET")
+  db, err := sql.Open("postgres", dbURL)
+  if err != nil {
+    log.Fatal("Could not open connection to db", err)
+  }
+  println("Connected to db")
 
-	http.HandleFunc("/logEvent", handleLog)
+  dbQueries := database.New(db)
+  apiConf := apiConfig{}
+  apiConf.db = dbQueries
+  apiConf.secret = secret
 
-	err := http.ListenAndServe(":3333", nil)
+	http.HandleFunc("/logEvent", apiConf.handleLog)
+
+	err = http.ListenAndServe(":3333", nil)
 	if err != nil {
 		log.Fatalf("Error: %s", err)
 	}
