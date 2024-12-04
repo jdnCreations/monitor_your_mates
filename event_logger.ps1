@@ -6,7 +6,7 @@ while ($true) {
 
   $events | Format-Table -Property TimeCreated, Id, LevelDisplayName, Message -AutoSize
 
-  $url = "http://localhost:3333/logEvent"
+  $url = "http://localhost:8080/logEvent"
   $data = $events | ForEach-Object {
     @{
       TimeCreated = $_.TimeCreated

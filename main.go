@@ -129,6 +129,7 @@ func main() {
   godotenv.Load()
   dbURL := os.Getenv("DB_URL")
   secret := os.Getenv("SECRET")
+  port := os.Getenv("PORT")
   db, err := sql.Open("postgres", dbURL)
   if err != nil {
     log.Fatal("Could not open connection to db", err)
@@ -144,7 +145,7 @@ func main() {
   http.HandleFunc("/api/events", apiConf.handleEvents)
   http.Handle("/", http.FileServer(http.Dir("./frontend")))
 
-	err = http.ListenAndServe(":3333", nil)
+	err = http.ListenAndServe(":" + port, nil)
 	if err != nil {
 		log.Fatalf("Error: %s", err)
 	}
